@@ -1,8 +1,8 @@
 [submodule "workstations"]
 	path = workstations
-	url = https://github.com/autonomy-cloud/workstations.git
-	branch = UI-chenges
+	url = https://github.com/lattice-agent-identity/workstations.git
+	branch = UI-Changes
 [submodule "identity"]
 	path = identity
-	url = https://github.com/autonomy-cloud/identity.git
-	branch = codex/add-workstations-service
+	url = https://github.com/lattice-agent-identity/identity.git
+	branch = codex/workstations-identity
