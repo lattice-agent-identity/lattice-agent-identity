@@ -1,0 +1,10 @@
+FROM lattice-workstations:local AS binaries
+FROM node:24-bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=binaries /opt/lattice /usr/local/bin/lattice
+COPY workstations/scripts/agent-runtime.mjs /opt/identity/agent-runtime.mjs
+RUN mkdir -p /home/node/workspace /home/node/.agent-identity && chown -R node:node /home/node && chmod 700 /home/node/.agent-identity
+ENV NODE_ENV=production
+USER node
+WORKDIR /home/node/workspace
+ENTRYPOINT ["/usr/local/bin/lattice", "agent"]

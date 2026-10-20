@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#161616" />
-    <meta name="description" content="Identity Workspace mock landing page." />
+    <meta name="description" content="Launch a workspace with an independently authenticated agent identity." />
     <title>Lattice Identity</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -33,24 +33,24 @@
             <button id="download-button" class="button button-primary" type="button"><span class="button-symbol">↓</span> Download Identity CLI <span class="arrow">→</span></button>
             <button id="launch-button" class="button button-secondary" type="button">Launch Identity Workspace <span class="arrow">↗</span></button>
           </div>
-          <p class="compatibility"><span class="status-dot"></span> CLI v1.8.0 &nbsp;•&nbsp; macOS, Linux &amp; Windows</p>
+          <p class="compatibility"><span class="status-dot"></span> Identity-backed credentials &nbsp;•&nbsp; Isolated workspaces</p>
         </section>
         <section class="status-panel" aria-label="Workspace status">
           <div class="panel-heading"><span>Workspace status</span><small>LIVE</small></div>
           <div class="status-grid">
-            <div><p>IDENTITY PROVIDER</p><strong><span class="green-dot"></span> Connected</strong></div>
-            <div><p>ACTIVE CONTEXT</p><strong>Production <span class="chevron">⌄</span></strong></div>
-            <div><p>LAST SYNCHRONIZED</p><strong>Just now</strong></div>
-            <div class="terminal-card"><span>$</span> identity status <i>— authenticated</i></div>
+            <div><p>IDENTITY PROVIDER</p><strong id="identity-status">Checking connection…</strong></div>
+            <div><p>ACTIVE CONTEXT</p><strong id="active-context">Identity Workspace</strong></div>
+            <div><p>LAST SYNCHRONIZED</p><strong id="sync-status">Connecting…</strong></div>
+            <div class="terminal-card"><span>$</span> identity status <i id="auth-status">checking</i></div>
           </div>
         </section>
       </main>
     </div>
     <dialog id="workspace-dialog">
       <div class="dialog-heading"><span class="brand-mark"></span><button id="close-dialog" aria-label="Close workspace">×</button></div>
-      <p class="eyebrow">IDENTITY WORKSPACE</p><h2>Workspace launch is ready.</h2>
-      <p>In the production application, this button would open the authenticated Identity Workspace. This mock keeps the interaction local.</p>
-      <button id="continue-button" class="button button-primary" type="button">Continue to workspace <span class="arrow">→</span></button>
+      <p class="eyebrow">IDENTITY WORKSPACE</p><h2>Launch your agent workspace</h2>
+      <p id="launch-status" role="status" aria-live="polite">Preparing your workspace…</p>
+      <button id="continue-button" class="button button-primary" type="button" hidden disabled>Open workspace <span class="arrow">→</span></button>
     </dialog>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script src="app.js"></script>

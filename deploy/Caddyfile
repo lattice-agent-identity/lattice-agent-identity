@@ -1,0 +1,12 @@
+{$APP_HOST} {
+  reverse_proxy launcher:8090
+}
+{$WORKSTATIONS_HOST} {
+  reverse_proxy workstations:3000
+}
+{$IDENTITY_HOST} {
+  reverse_proxy identity:3001
+}
+{$IDENTITY_ADMIN_HOST} {
+  reverse_proxy identity:3002
+}

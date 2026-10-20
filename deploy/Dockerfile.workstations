@@ -1,0 +1,12 @@
+FROM ubuntu:24.04
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git openssh-client tzdata && rm -rf /var/lib/apt/lists/* && useradd -m -u 10001 lattice
+COPY --chmod=755 deploy/artifacts/lattice /opt/lattice
+COPY --chmod=755 deploy/artifacts/terraform /usr/local/bin/terraform
+COPY --chmod=755 deploy/artifacts/terraform-provider-lattice_v2.33.6 /opt/providers/registry.terraform.io/openagent-md/lattice/2.33.6/linux_amd64/terraform-provider-lattice_v2.33.6
+COPY deploy/terraform.rc /opt/terraform.rc
+COPY --chmod=755 deploy/control-plane-entrypoint.sh /opt/start
+ENV TF_CLI_CONFIG_FILE=/opt/terraform.rc HOME=/home/lattice LATTICE_CACHE_DIRECTORY=/home/lattice/.cache/lattice
+USER lattice
+WORKDIR /home/lattice
+ENTRYPOINT ["/opt/start"]
+CMD ["server"]

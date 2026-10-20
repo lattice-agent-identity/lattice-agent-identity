@@ -1,0 +1,11 @@
+FROM node:24-bookworm-slim
+ENV NODE_ENV=production
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts && mkdir /data && chown node:node /data
+COPY server ./server
+COPY index.html app.js styles.css ./
+COPY workstations/scripts/identity.mjs ./workstations/scripts/identity.mjs
+USER node
+EXPOSE 8090
+CMD ["node", "server/main.mjs"]

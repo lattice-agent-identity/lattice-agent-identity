@@ -1,0 +1,11 @@
+.git
+.local
+.env
+.env.*
+node_modules
+identity
+workstations/**
+!workstations/scripts/
+workstations/scripts/**
+!workstations/scripts/identity.mjs
+!workstations/scripts/agent-runtime.mjs

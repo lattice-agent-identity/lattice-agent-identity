@@ -1,0 +1,150 @@
+services:
+  gateway:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      APP_HOST: ${APP_HOST:?Set APP_HOST}
+      WORKSTATIONS_HOST: ${WORKSTATIONS_HOST:?Set WORKSTATIONS_HOST}
+      IDENTITY_HOST: ${IDENTITY_HOST:?Set IDENTITY_HOST}
+      IDENTITY_ADMIN_HOST: ${IDENTITY_ADMIN_HOST:?Set IDENTITY_ADMIN_HOST}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+  identity-db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: identity
+      POSTGRES_USER: identity
+      POSTGRES_PASSWORD: ${IDENTITY_DB_PASSWORD:?Set a random hexadecimal database password}
+    volumes: ["identity-db:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U identity -d identity"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  workstations-db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: workstations
+      POSTGRES_USER: workstations
+      POSTGRES_PASSWORD: ${WORKSTATIONS_DB_PASSWORD:?Set a random hexadecimal database password}
+    volumes: ["workstations-db:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workstations -d workstations"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  identity:
+    image: lattice-identity:local
+    build:
+      context: ./identity
+      args: { openagent_identity_enabled: "true" }
+    restart: unless-stopped
+    environment: &identity-environment
+      NODE_ENV: production
+      DB_URL: postgres://identity:${IDENTITY_DB_PASSWORD}@identity-db:5432/identity
+      ENDPOINT: https://${IDENTITY_HOST}
+      ADMIN_ENDPOINT: https://${IDENTITY_ADMIN_HOST}
+      ADMIN_DISABLE_LOCALHOST: "1"
+      TRUST_PROXY_HEADER: "1"
+      OPENAGENT_IDENTITY_ENABLED: "1"
+      OPENAGENT_WORKSTATIONS_AUDIENCE: https://${WORKSTATIONS_HOST}
+    depends_on:
+      identity-db: { condition: service_healthy }
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+  identity-setup:
+    image: lattice-identity:local
+    profiles: [setup]
+    environment: *identity-environment
+    entrypoint: ["node", "/etc/logto/packages/cli/bin/logto.js"]
+    command: ["db", "seed"]
+    depends_on:
+      identity-db: { condition: service_healthy }
+  workstations:
+    image: lattice-workstations:local
+    restart: unless-stopped
+    environment:
+      LATTICE_HTTP_ADDRESS: 0.0.0.0:3000
+      LATTICE_ACCESS_URL: https://${WORKSTATIONS_HOST}
+      LATTICE_PG_CONNECTION_URL: postgres://workstations:${WORKSTATIONS_DB_PASSWORD}@workstations-db:5432/workstations?sslmode=disable
+      LATTICE_PROVISIONER_DAEMONS: "0"
+      LATTICE_TELEMETRY_ENABLE: "false"
+      LATTICE_OIDC_ISSUER_URL: https://${IDENTITY_HOST}/oidc
+      LATTICE_OIDC_CLIENT_ID: ${WORKSTATIONS_OIDC_CLIENT_ID:?Configure the Workstations OIDC client}
+      LATTICE_OIDC_CLIENT_SECRET: ${WORKSTATIONS_OIDC_CLIENT_SECRET:?Configure its secret}
+      LATTICE_OIDC_SCOPES: openid,profile,email,offline_access
+      LATTICE_OIDC_SIGN_IN_TEXT: Identity
+    volumes: ["workstations-cache:/home/lattice/.cache/lattice"]
+    depends_on:
+      workstations-db: { condition: service_healthy }
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+  provisioner:
+    image: lattice-workstations:local
+    restart: unless-stopped
+    user: "0:0"
+    command: ["provisionerd", "start", "--name", "identity-launcher"]
+    environment:
+      LATTICE_URL: https://${WORKSTATIONS_HOST}
+      LATTICE_ORGANIZATION: ${WORKSTATIONS_ORGANIZATION_ID:?Set organization ID}
+      DOCKER_HOST: unix:///var/run/docker.sock
+    volumes:
+      - ${WORKSPACE_DOCKER_SOCKET:?Set the dedicated rootless Docker socket}:/var/run/docker.sock
+      - provisioner-cache:/home/lattice/.cache/lattice
+    secrets: [provisioner_key]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    pids_limit: 512
+    mem_limit: 2g
+    cpus: 2
+    depends_on: [workstations]
+  launcher:
+    image: lattice-launcher:local
+    build: { context: ., dockerfile: deploy/Dockerfile.launcher }
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      APP_URL: https://${APP_HOST}
+      IDENTITY_URL: https://${IDENTITY_HOST}
+      WORKSTATIONS_URL: https://${WORKSTATIONS_HOST}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?Set launcher OIDC client}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?Set launcher OIDC secret}
+      IDENTITY_MANAGEMENT_CLIENT_ID: ${IDENTITY_MANAGEMENT_CLIENT_ID:?Set management M2M client}
+      IDENTITY_MANAGEMENT_CLIENT_SECRET: ${IDENTITY_MANAGEMENT_CLIENT_SECRET:?Set management M2M secret}
+      IDENTITY_MANAGEMENT_RESOURCE: ${IDENTITY_MANAGEMENT_RESOURCE:?Set Management API resource indicator}
+      WORKSTATIONS_ADMIN_TOKEN_FILE: /run/secrets/workstations_admin_token
+      WORKSTATIONS_ORGANIZATION_ID: ${WORKSTATIONS_ORGANIZATION_ID}
+      WORKSTATIONS_TEMPLATE_ID: ${WORKSTATIONS_TEMPLATE_ID:?Import the identity workspace template}
+      LAUNCH_CONTROLLERS: ${LAUNCH_CONTROLLERS:?Map authorized Identity subjects to Workstations user IDs}
+      MAX_WORKSPACES_PER_CONTROLLER: ${MAX_WORKSPACES_PER_CONTROLLER:-3}
+      LAUNCHER_DATABASE: /data/launcher.sqlite
+    secrets: [workstations_admin_token]
+    volumes: ["launcher-data:/data"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8090/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    pids_limit: 128
+    mem_limit: 512m
+    depends_on: [identity, workstations]
+secrets:
+  workstations_admin_token:
+    file: ${WORKSTATIONS_ADMIN_TOKEN_PATH:?Set private token file path}
+  provisioner_key:
+    file: ${PROVISIONER_KEY_PATH:?Set organization-scoped provisioner key file path}
+volumes:
+  identity-db:
+  workstations-db:
+  workstations-cache:
+  provisioner-cache:
+  launcher-data:
+  caddy-data:
+  caddy-config:
